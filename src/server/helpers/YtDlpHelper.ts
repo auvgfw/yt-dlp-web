@@ -1,4 +1,6 @@
 import { ChildProcessWithoutNullStreams, spawn } from 'child_process';
+import { renameSync } from 'fs';
+import { extname } from 'path';
 import { Stats, promises as fs } from 'fs';
 import numeral from 'numeral';
 import { throttle } from 'lodash';
@@ -281,8 +283,7 @@ export class YtDlpHelper {
             // options.push('--force-keyframes-at-cuts', '--download-sections', '*00:01:30.00-00:01:51.00');
             options.push(
               '--download-sections',
-              `*${this.videoInfo.cutStartTime || '00:00:00.00'}-${
-                this.videoInfo.cutEndTime || 'inf'
+              `*${this.videoInfo.cutStartTime || '00:00:00.00'}-${this.videoInfo.cutEndTime || 'inf'
               }`
             );
 
@@ -629,7 +630,7 @@ export class YtDlpHelper {
                 if (stat) {
                   videoInfo.file.size = stat.size;
                 }
-              } catch (e) {}
+              } catch (e) { }
             }
             await throttleCacheSet(uuid, videoInfo);
           }, 3000);
@@ -642,7 +643,7 @@ export class YtDlpHelper {
           // await CacheHelper.set(VIDEO_LIST_FILE, uuidList);
           await CacheHelper.set(uuid, videoInfo);
           // }
-        } catch (e) {}
+        } catch (e) { }
 
         ytdlp.stdout.off('data', initialListener);
         ytdlp.stderr.off('data', initialListener);
@@ -651,7 +652,7 @@ export class YtDlpHelper {
         ytdlp.stderr.on('data', downloadListener);
 
         downloadStartCallback?.();
-      } catch (e) {}
+      } catch (e) { }
     };
 
     const streamDownloadListener = async (message: string) => {
@@ -791,7 +792,7 @@ export class YtDlpHelper {
           //   break;
           // }
         }
-      } catch (e) {}
+      } catch (e) { }
     };
 
     const streamDownloadEndListener = async () => {
@@ -804,7 +805,7 @@ export class YtDlpHelper {
       _fileDestination = null;
       try {
         stat = await fs.stat(fileDestination);
-      } catch (e) {}
+      } catch (e) { }
       if (stat) {
         if (cachingInterval) clearInterval(cachingInterval);
 
@@ -829,7 +830,7 @@ export class YtDlpHelper {
             ...videoInfo.file,
             ...streams
           };
-        } catch (error) {}
+        } catch (error) { }
         videoInfo.updatedAt = Date.now();
         await CacheHelper.set(uuid, videoInfo);
       }
@@ -855,8 +856,68 @@ export class YtDlpHelper {
               ...videoInfo.file,
               ...streams
             };
+
+
+
+            // ...在 videoDownloadEndListener 里...
+
+            if (streams?.codecName && streams.codecName !== 'h264') {
+              const inputPath = videoInfo.file.path;
+              if (inputPath) {
+                const ext = extname(inputPath);
+                const outputPath = inputPath.replace(ext, `_h264${ext}`);
+
+                // 构造ffmpeg参数
+                const ffmpegArgs = [
+                  '-i', inputPath,
+                  '-c:v', 'libx264',
+                  '-preset', 'fast',
+                  '-crf', '23',
+                  outputPath
+                ];
+
+
+                const ffmpegArgsqsv = [
+                  '-hide_banner',
+                  '-i', inputPath,
+                  '-c:v', 'h264_qsv',
+
+                  '-preset', 'fast',
+                  outputPath
+                ];
+
+
+
+                await new Promise<void>((resolve, reject) => {
+                  const proc = spawn('ffmpeg', ffmpegArgsqsv, { stdio: 'inherit' });
+                  proc.stdout?.on('data', (data) => {
+                    console.log(`[ffmpeg stdout]: ${data}`);
+                  });
+                  proc.stderr?.on('data', (data) => {
+                    console.error(`[ffmpeg stderr]: ${data}`);
+                  });
+                  proc.on('exit', (code) => {
+                    if (code === 0) {
+                      // 可选：用新文件替换老文件
+                      renameSync(outputPath, inputPath);
+                      resolve();
+                    } else {
+                      reject(new Error('ffmpeg  转码失败'));
+                    }
+                  });
+                });
+              }
+              // 转码后可再次用 ffprobe 获取编码信息并更新 videoInfo.file
+              const newStreams = await ffmpeg.getVideoStreams();
+              videoInfo.file = {
+                ...videoInfo.file,
+                ...newStreams
+              };
+            }
+
+
           }
-        } catch (e) {}
+        } catch (e) { }
       }
       videoInfo.updatedAt = Date.now();
       await CacheHelper.set(uuid, videoInfo);
@@ -958,7 +1019,7 @@ export class YtDlpHelper {
             videoInfo.updatedAt = Date.now();
             await throttleCacheSet(uuid, videoInfo);
           }
-        } catch (e) {}
+        } catch (e) { }
       }
 
       const hasAlready = new RegExp(
@@ -995,7 +1056,7 @@ export class YtDlpHelper {
             videoInfo.updatedAt = Date.now();
             await throttleCacheSet(uuid, videoInfo);
           }
-        } catch (e) {}
+        } catch (e) { }
       }
 
       const downloadProgress = downloadProgressRegex.exec(message);
@@ -1080,7 +1141,7 @@ export class YtDlpHelper {
               if (stat) {
                 videoInfo.playlist[i].size = stat.size;
               }
-            } catch (e) {}
+            } catch (e) { }
           })
         );
 

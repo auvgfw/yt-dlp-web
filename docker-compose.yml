@@ -2,17 +2,23 @@ version: "3"
 
 services:
   yt-dlp-web:
-    image: sooros5132/yt-dlp-web
+    image: auvgfw/yt-dlp-web
     container_name: yt-dlp-web
     user: 1000:1000
+    cpus: 2 # Limit CPU usage to 2 cores
+
+    # uncomment the following line to enable GPU acceleration
+    #devices:
+    #  - /dev/dri:/dev/dri
+
     # environment:
     #   If you need to protect the site, set AUTH_SECRET, CREDENTIAL_USERNAME, CREDENTIAL_PASSWORD.
     #   AUTH_SECRET: "Random_string,_40+_characters_recommended"
     #   CREDENTIAL_USERNAME: "username"
     #   CREDENTIAL_PASSWORD: "password"
     volumes:
-      - ~/Desktop/downloads:/downloads
-      - ~/Desktop/cache:/cache
+      - d:/share/downloads:/downloads
+      - d:/share/cache:/cache
     ports:
-      - 3000:3000
+      - 10001:3000
     restart: unless-stopped
